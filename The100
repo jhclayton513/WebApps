@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The 100 Challenge</title>
+<style>
+:root{
+  --bg: #eaf5ff;
+  --ink: #0e2a47;
+  --card: #ffffff;
+  --gym: #ff8a80;
+  --body: #78b8ff;
+  --bands: #72d6a0;
+  --accent: #1565d8;
+  --muted: #5d728a;
+  --highlight: #fff4a9;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+#app{
+  max-width: 980px;
+  margin: 28px auto 48px;
+  padding: 0 16px;
+}
+h1{
+  text-align:center;
+  margin: 0 0 8px;
+  font-size: clamp(28px, 3.5vw, 42px);
+}
+#top{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+#percentage{ font-weight: 900; font-size: clamp(22px, 2.5vw, 32px); }
+#last-saved{ font-size: 14px; color: var(--muted); }
+.card{
+  background: var(--card);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(6,20,40,.08);
+  margin: 12px 0 18px;
+}
+.section-title{ margin: 20px 0 8px; font-size: 18px; opacity: .85; }
+.buttons,.actions{
+  display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+}
+.buttons{ margin-bottom: 10px; }
+.actions{ margin-top: 8px; }
+.btn{
+  border: none; border-radius: 10px; padding: 10px 14px;
+  font-weight: 800; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(8,20,40,.08);
+  transition: transform .06s ease, filter .2s ease;
+  user-select: none;
+}
+.btn:active{ transform: translateY(1px) }
+.btn.gym{ background: var(--gym); color:#5b0000 }
+.btn.bodyweight{ background: var(--body); color:#04264f }
+.btn.bands{ background: var(--bands); color:#053a21 }
+.btn.primary{ background: var(--accent); color:#fff }
+.btn.danger{ background: #ff5a5a; color:#fff }
+#exercise-display{
+  text-align:center; min-height: 40px; font-weight: 800; font-size: 18px; margin: 4px auto 4px;
+}
+#exercise-list{ display:block; }
+.exercise-item{
+  background:#fff; border-left: 10px solid transparent; border-radius: 12px;
+  padding: 12px 14px; margin: 10px 0; box-shadow: 0 8px 18px rgba(8,20,40,.06);
+  transition: background-color .35s ease, border-left-color .2s ease;
+}
+.exercise-row{ display:flex; align-items:center; gap: 12px; }
+.exercise-name{ font-weight: 900; cursor: pointer; }
+.exercise-badge{
+  margin-left:auto; font-size: 12px; font-weight: 900; padding: 6px 10px; border-radius:999px;
+}
+.badge-gym{ background: var(--gym); color:#5b0000 }
+.badge-body{ background: var(--body); color:#04264f }
+.badge-bands{ background: var(--bands); color:#053a21 }
+.toggle-btn{
+  font-size: 12px; padding: 6px 8px; border-radius: 8px;
+  border: 1px solid rgba(0,0,0,.06); background: #f8fbff; cursor: pointer; margin-left: 8px;
+}
+.exercise-details{ font-size: 14px; color:#24364a; margin-top:8px }
+.exercise-details.hidden{ display:none }
+.flash{ animation: flashBg .8s ease }
+@keyframes flashBg{ 0%{ background: var(--highlight) } 100%{ background: #fff } }
+.roulette{ animation: pulse .35s linear infinite }
+@keyframes pulse{ 0%,100%{opacity:.55} 50%{opacity:1} }
+.reset-wrap{ text-align:center; margin: 26px 0 8px; }
+#confetti{ position: fixed; inset: 0; pointer-events: none; z-index: 9999; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>🎯 The 100 Challenge</h1>
+
+  <div id="top">
+    <div id="percentage">0% Complete</div>
+    <div id="last-saved"></div>
+  </div>
+
+  <div id="controls" class="card">
+    <div class="buttons">
+      <button id="random-gym" class="btn gym">🎲 Random Gym</button>
+      <button id="random-bodyweight" class="btn bodyweight">🎲 Random Bodyweight</button>
+      <button id="random-bands" class="btn bands">🎲 Random Bands</button>
+    </div>
+
+    <div id="exercise-display">Click a button to get started!</div>
+
+    <div class="actions">
+      <button id="mark-complete" class="btn primary" disabled>✔ Mark Selected Complete</button>
+    </div>
+  </div>
+
+  <h2 class="section-title">✅ Exercise Checklist</h2>
+  <div id="exercise-list"></div>
+
+  <!-- Reset button at the very bottom -->
+  <div class="reset-wrap">
+    <button id="reset" class="btn danger">🔄 Reset Challenge</button>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+/* ======================================================
+   The 100 Challenge - Three Categories (Gym, Bodyweight, Bands)
+   ====================================================== */
+const STORAGE_KEY = "the100_threecats_singlehtml_v1";
+
+/* ---------------------------
+   Exercise library (100)
+   category: "gym" | "bodyweight" | "bands"
+   --------------------------- */
+const exercises = [
+  /* ================== 30 GYM ================== */
+  {name:"Goblet Squat", category:"gym", muscles:"Glutes, Quads, Core", video:"https://www.youtube.com/watch?v=6xwY6Jv9ij0", description:"Hold a kettlebell/dumbbell at chest; sit between hips and stand tall."},
+  {name:"Kettlebell Deadlift", category:"gym", muscles:"Glutes, Hamstrings, Back", video:"https://www.youtube.com/watch?v=UGKdfxY6AQ0", description:"Hip hinge to lift the bell; squeeze glutes at the top."},
+  {name:"Romanian Deadlift", category:"gym", muscles:"Hamstrings, Glutes", video:"https://www.youtube.com/watch?v=2SHsk9AzdjA", description:"Soft knees; push hips back; keep spine neutral."},
+  {name:"Barbell Hip Thrust", category:"gym", muscles:"Glutes", video:"https://www.youtube.com/watch?v=LM8XHLYJoYs", description:"Shoulders on a bench; thrust hips up and pause at top."},
+  {name:"Kettlebell Swing", category:"gym", muscles:"Hips, Posterior Chain", video:"https://www.youtube.com/watch?v=YSxHifyI6sQ", description:"Explosive hip hinge; bell floats to chest height."},
+  {name:"Bulgarian Split Squat (DB)", category:"gym", muscles:"Quads, Glutes", video:"https://www.youtube.com/watch?v=2C-uNgKwPLE", description:"Rear foot elevated; descend vertically; drive up through front heel."},
+  {name:"Barbell Back Squat", category:"gym", muscles:"Quads, Glutes, Core", video:"https://www.youtube.com/watch?v=ultWZbUMPL8", description:"Bar on back; sit between hips; drive evenly through feet."},
+  {name:"Dumbbell Bench Press", category:"gym", muscles:"Chest, Triceps", video:"https://www.youtube.com/watch?v=VmB1G1K7v94", description:"Press DBs from chest; control the eccentric."},
+  {name:"Incline Dumbbell Press", category:"gym", muscles:"Upper Chest, Shoulders", video:"https://www.youtube.com/watch?v=8iPEnn-ltC8", description:"Set a modest incline; press smoothly without shoulder flare."},
+  {name:"Chest-Supported Row", category:"gym", muscles:"Upper/Mid Back", video:"https://www.youtube.com/watch?v=Ej8-ZZhvLmc", description:"On incline bench; row DBs to ribs; squeeze shoulder blades."},
+  {name:"Barbell Bent-Over Row", category:"gym", muscles:"Back, Lats", video:"https://www.youtube.com/watch?v=vT2GjY_Umpw", description:"Hinge 45° and pull bar to lower ribs; brace core."},
+  {name:"Seated Cable Row", category:"gym", muscles:"Mid Back", video:"https://www.youtube.com/watch?v=HJSVR_73x8s", description:"Sit tall; row to navel; pause; control return."},
+  {name:"Pull-Ups", category:"gym", muscles:"Back, Biceps", video:"https://www.youtube.com/watch?v=eGo4IYlbE5g", description:"Pull chest to bar; control the descent; use assist if needed."},
+  {name:"Lat Pulldown", category:"gym", muscles:"Lats", video:"https://www.youtube.com/watch?v=CAwf7n6Luuc", description:"Pull to collarbone with elbows down and in."},
+  {name:"Overhead Press (Bar/DB)", category:"gym", muscles:"Shoulders, Triceps", video:"https://www.youtube.com/watch?v=qEwKCR5JCog", description:"Press overhead with ribs down and glutes tight."},
+  {name:"Dumbbell Shoulder Press", category:"gym", muscles:"Shoulders", video:"https://www.youtube.com/watch?v=B-aVuyhvLHU", description:"Seated/standing press; avoid excessive arch."},
+  {name:"Arnold Press", category:"gym", muscles:"Shoulders", video:"https://www.youtube.com/watch?v=vj2w851ZHRM", description:"Rotate palms during press to hit delts through more ROM."},
+  {name:"Lateral Raises", category:"gym", muscles:"Medial Delts", video:"https://www.youtube.com/watch?v=3VcKaXpzqRo", description:"Raise DBs to shoulder level with slow control."},
+  {name:"Face Pulls (Cable)", category:"gym", muscles:"Rear Delts, Upper Back", video:"https://www.youtube.com/watch?v=v8z7aHEsj5c", description:"High elbows; pull rope to face; externally rotate."},
+  {name:"Barbell Biceps Curl", category:"gym", muscles:"Biceps", video:"https://www.youtube.com/watch?v=kwG2ipFRgfo", description:"Curl with elbows pinned; no swinging."},
+  {name:"Dumbbell Hammer Curl", category:"gym", muscles:"Biceps, Forearms", video:"https://www.youtube.com/watch?v=zC3nLlEvin4", description:"Neutral grip curl; slow lower."},
+  {name:"Skullcrusher (EZ/DB)", category:"gym", muscles:"Triceps", video:"https://www.youtube.com/watch?v=d_KZxkY_0cM", description:"Lower to forehead; extend; keep elbows tucked."},
+  {name:"Triceps Rope Pushdown", category:"gym", muscles:"Triceps", video:"https://www.youtube.com/watch?v=vB5OHsJ3EME", description:"Push rope down and separate at bottom."},
+  {name:"Cable Pallof Press", category:"gym", muscles:"Core (Anti-Rotation)", video:"https://www.youtube.com/watch?v=QnUGuOrzzuQ", description:"Press out; resist turning; control breathing."},
+  {name:"Cable Woodchopper", category:"gym", muscles:"Obliques", video:"https://www.youtube.com/watch?v=5nD14VJ8t8I", description:"Rotate high-to-low or low-to-high in a smooth arc."},
+  {name:"Landmine Rotation", category:"gym", muscles:"Core/Obliques", video:"https://www.youtube.com/watch?v=Q-8iHP-0vXk", description:"Hold landmine bar; rotate through torso; steady hips."},
+  {name:"Barbell Rollout", category:"gym", muscles:"Core", video:"https://www.youtube.com/watch?v=EC7RGJ6WJY0", description:"Roll forward with neutral spine and braced torso."},
+  {name:"Weighted Plank", category:"gym", muscles:"Core", video:"https://www.youtube.com/watch?v=MGXpbQ0vHtM", description:"Hold plank with plate on upper back; steady breathing."},
+  {name:"Farmer’s Carry", category:"gym", muscles:"Grip, Core, Shoulders", video:"https://www.youtube.com/watch?v=H-i8Av9hRkY", description:"Walk tall with heavy DBs; resist sway."},
+
+  /* ================== 40 BODYWEIGHT ================== */
+  {name:"Bodyweight Squat", category:"bodyweight", muscles:"Quads, Glutes", video:"https://www.youtube.com/watch?v=aclHkVaku9U", description:"Sit between hips and stand; chest up."},
+  {name:"Jump Squat", category:"bodyweight", muscles:"Legs, Power", video:"https://www.youtube.com/watch?v=CVaEhXotL7M", description:"Explode up; land softly with bent knees."},
+  {name:"Split Squat", category:"bodyweight", muscles:"Quads, Glutes", video:"https://www.youtube.com/watch?v=2C-uNgKwPLE", description:"Static lunge stance; descend straight down."},
+  {name:"Step-Ups (Chair)", category:"bodyweight", muscles:"Quads, Glutes", video:"https://www.youtube.com/watch?v=WSu-wci9uTo", description:"Use sturdy chair; fully stand on top before stepping down."},
+  {name:"Reverse Lunge", category:"bodyweight", muscles:"Glutes, Quads", video:"https://www.youtube.com/watch?v=wrwwXE_x-pQ", description:"Step back; push through front heel to rise."},
+  {name:"Forward Lunge", category:"bodyweight", muscles:"Quads", video:"https://www.youtube.com/watch?v=QOVaHwm-Q6U", description:"Step forward, lower, push back to start."},
+  {name:"Side Lunge", category:"bodyweight", muscles:"Adductors, Glutes", video:"https://www.youtube.com/watch?v=utVZtXwnJDc", description:"Step wide; sit back into the lateral hip."},
+  {name:"Curtsy Lunge", category:"bodyweight", muscles:"Glute Medius", video:"https://www.youtube.com/watch?v=JBYn6OZgk2c", description:"Cross back leg behind to bias lateral hip."},
+  {name:"Glute Bridge", category:"bodyweight", muscles:"Glutes", video:"https://www.youtube.com/watch?v=9qo48CYN06w", description:"Heels near hips; lift and squeeze hard."},
+  {name:"Single-Leg Glute Bridge", category:"bodyweight", muscles:"Glutes", video:"https://www.youtube.com/watch?v=8bbE64NuDTU", description:"One foot down; keep hips level as you lift."},
+  {name:"Hip Bridge March", category:"bodyweight", muscles:"Glutes, Core", video:"https://www.youtube.com/watch?v=7GdUGhq0uSE", description:"Hold bridge; alternate marches without dropping hips."},
+  {name:"Frog Pumps", category:"bodyweight", muscles:"Glutes", video:"https://www.youtube.com/watch?v=Rk3Q6RnlxWQ", description:"Feet together, knees out; quick pulses at top."},
+  {name:"Fire Hydrant", category:"bodyweight", muscles:"Glutes", video:"https://www.youtube.com/watch?v=7LnuhLi-78c", description:"Quadruped; raise knee laterally; keep spine neutral."},
+  {name:"Donkey Kick", category:"bodyweight", muscles:"Glutes", video:"https://www.youtube.com/watch?v=UvDdFgyDqfU", description:"Kick heel up; avoid lower-back arching."},
+  {name:"Bird Dog", category:"bodyweight", muscles:"Core, Glutes", video:"https://www.youtube.com/watch?v=wiFNA3sqjCA", description:"Opp arm/leg reach; hips square; ribs down."},
+  {name:"Front Plank", category:"bodyweight", muscles:"Core", video:"https://www.youtube.com/watch?v=pSHjTRCQxIw", description:"Elbows under shoulders; squeeze glutes."},
+  {name:"Side Plank", category:"bodyweight", muscles:"Obliques", video:"https://www.youtube.com/watch?v=K2VljzCC16g", description:"Ankles-hips-shoulders in line; don’t let hips sag."},
+  {name:"Side Plank Hip Lifts", category:"bodyweight", muscles:"Obliques, Glute Medius", video:"https://www.youtube.com/watch?v=cwB8tT5vQJ0", description:"Lower/raise hips for controlled reps."},
+  {name:"Plank Shoulder Tap", category:"bodyweight", muscles:"Core (Anti-rotation)", video:"https://www.youtube.com/watch?v=DJh6iC9xE6s", description:"Tap opposite shoulder with minimal sway."},
+  {name:"Plank Reach", category:"bodyweight", muscles:"Core", video:"https://www.youtube.com/watch?v=3A3bl0aD4m8", description:"Reach arms forward from high plank."},
+  {name:"Hollow Hold", category:"bodyweight", muscles:"Anterior Core", video:"https://www.youtube.com/watch?v=tzD9BkXGJ1M", description:"Lower back pressed to floor; arms/legs long."},
+  {name:"Dead Bug", category:"bodyweight", muscles:"Core", video:"https://www.youtube.com/watch?v=5vR6h92dSSM", description:"Opp arm/leg lower while spine stays neutral."},
+  {name:"Superman", category:"bodyweight", muscles:"Spinal Erectors, Glutes", video:"https://www.youtube.com/watch?v=z6PJMT2y8GQ", description:"Lift arms/legs; pause; lower under control."},
+  {name:"Push-Up", category:"bodyweight", muscles:"Chest, Triceps, Core", video:"https://www.youtube.com/watch?v=IODxDxX7oi4", description:"Body line stays straight; full ROM."},
+  {name:"Wide Push-Up", category:"bodyweight", muscles:"Chest", video:"https://www.youtube.com/watch?v=bM2rYqLwG9E", description:"Hands wider than shoulders to bias chest."},
+  {name:"Diamond Push-Up", category:"bodyweight", muscles:"Triceps", video:"https://www.youtube.com/watch?v=J0DnG1_S92I", description:"Hands form a diamond; elbows track close."},
+  {name:"Incline Push-Up", category:"bodyweight", muscles:"Chest (easier)", video:"https://www.youtube.com/watch?v=0DNX9VdB1n8", description:"Hands elevated on a surface to reduce load."},
+  {name:"Decline Push-Up", category:"bodyweight", muscles:"Upper Chest, Shoulders", video:"https://www.youtube.com/watch?v=TU8QYVW0gDU&t=36s", description:"Feet elevated; maintain core tension."},
+  {name:"Pike Push-Up", category:"bodyweight", muscles:"Shoulders", video:"https://www.youtube.com/watch?v=2vWKbP5Jg5g", description:"Hips high; lower head toward hands; press back."},
+  {name:"Handstand Hold (Wall)", category:"bodyweight", muscles:"Shoulders, Core", video:"https://www.youtube.com/watch?v=1MPr4r6w7y8", description:"Kick to wall; stack joints; steady breathing."},
+  {name:"Wall Sit", category:"bodyweight", muscles:"Quads", video:"https://www.youtube.com/watch?v=y-wV4Venusw", description:"Thighs parallel; knees over ankles; hold."},
+  {name:"Single-Leg Wall Sit", category:"bodyweight", muscles:"Quads, Glutes", video:"https://www.youtube.com/watch?v=8kJrT0vCF1w", description:"Shift weight to one leg while holding the sit."},
+  {name:"Calf Raise (Bodyweight)", category:"bodyweight", muscles:"Calves", video:"https://www.youtube.com/watch?v=YMmgqO8Jo-k", description:"Full stretch at bottom; tall squeeze at top."},
+  {name:"Toe Walk", category:"bodyweight", muscles:"Calves, Feet", video:"https://www.youtube.com/watch?v=GfTjQ0g5y6Y", description:"Walk on toes for time/distance; small steps."},
+  {name:"Mountain Climbers", category:"bodyweight", muscles:"Core, Cardio", video:"https://www.youtube.com/watch?v=nmwgirgXLYM", description:"Drive knees toward chest rapidly; stable hips."},
+  {name:"Burpee", category:"bodyweight", muscles:"Full Body, Cardio", video:"https://www.youtube.com/watch?v=TU8QYVW0gDU", description:"Squat down, kick back, push-up, jump up."},
+  {name:"Jumping Jacks", category:"bodyweight", muscles:"Cardio", video:"https://www.youtube.com/watch?v=c4DAnQ6DtF8", description:"Rhythmic jumps with full arm swing."},
+  {name:"Skater Jumps", category:"bodyweight", muscles:"Glutes, Lateral Chain", video:"https://www.youtube.com/watch?v=3q4J2b6k4W8", description:"Bound side to side; land softly and balanced."},
+  {name:"High Knees", category:"bodyweight", muscles:"Cardio, Hip Flexors", video:"https://www.youtube.com/watch?v=OAJ_J3EZkdY", description:"Drive knees to waist height quickly."},
+  {name:"Butt Kicks", category:"bodyweight", muscles:"Hamstrings, Cardio", video:"https://www.youtube.com/watch?v=e949xZr5-9k", description:"Jog in place; heels to glutes."},
+
+  /* ================== 30 BANDS ================== */
+  {name:"Banded Lateral Walks", category:"bands", muscles:"Glute Medius, Hips", video:"https://www.youtube.com/watch?v=2vX3nl93y_4", description:"Band above knees/ankles; small side steps under tension."},
+  {name:"Banded Monster Walks", category:"bands", muscles:"Glutes, Hips", video:"https://www.youtube.com/watch?v=xwKu5J7j_XE", description:"Diagonal steps forward/back; keep band tension."},
+  {name:"Banded Clamshells", category:"bands", muscles:"Glute Medius", video:"https://www.youtube.com/watch?v=UkS6y3fR5Lg", description:"Side-lying abduction against band; avoid pelvis roll."},
+  {name:"Banded Glute Kickbacks", category:"bands", muscles:"Glutes", video:"https://www.youtube.com/watch?v=G8lqh5kysv8", description:"Kick heel back against band; squeeze at top."},
+  {name:"Banded Pull-Aparts", category:"bands", muscles:"Rear Delts, Upper Back", video:"https://www.youtube.com/watch?v=Gb8Zq2Gq1xg", description:"Arms straight; pull band apart to chest level."},
+  {name:"Banded Rows (Door Anchor)", category:"bands", muscles:"Back", video:"https://www.youtube.com/watch?v=VhCz9R4GZ1U", description:"Row handles to ribs; control the return."},
+  {name:"Banded Chest Press", category:"bands", muscles:"Chest, Triceps", video:"https://www.youtube.com/watch?v=1b9qS1WQWg4", description:"Anchor behind; press forward like push-up pattern."},
+  {name:"Banded Face Pull", category:"bands", muscles:"Rear Delts", video:"https://www.youtube.com/watch?v=nU4G2g2YJgw", description:"High elbows; external rotation at finish."},
+  {name:"Banded Pallof Press", category:"bands", muscles:"Core (Anti-rotation)", video:"https://www.youtube.com/watch?v=1oed-UmAxFs", description:"Press out; resist rotation; steady hips and ribs."},
+  {name:"Banded Deadlift (Light)", category:"bands", muscles:"Hamstrings, Glutes", video:"https://www.youtube.com/watch?v=Kp5SF4c7Uro", description:"Stand on band; hinge; emulate DL pattern."},
+  {name:"Banded Good Morning", category:"bands", muscles:"Hamstrings, Erectors", video:"https://www.youtube.com/watch?v=Jk3P9v2s-4E", description:"Band across shoulders; bow forward, return tall."},
+  {name:"Banded Lateral Leg Raise", category:"bands", muscles:"Glute Medius", video:"https://www.youtube.com/watch?v=4m2g9R3vKZM", description:"Standing abduction against band."},
+  {name:"Banded Single-Leg RDL", category:"bands", muscles:"Hamstrings, Glutes", video:"https://www.youtube.com/watch?v=9d2d6N7q0Lw", description:"Single-leg hinge; band adds tension."},
+  {name:"Banded Hip Thrust", category:"bands", muscles:"Glutes", video:"https://www.youtube.com/watch?v=U8Z7bGy7k1A", description:"Band over hips; thrust up; pause and lower."},
+  {name:"Banded Standing Hip Extension", category:"bands", muscles:"Glutes", video:"https://www.youtube.com/watch?v=QZC7B8n8z1M", description:"Anchor behind; press leg straight back."},
+  {name:"Banded Standing Hip Abduction", category:"bands", muscles:"Glute Medius", video:"https://www.youtube.com/watch?v=4m2g9R3vKZM", description:"Anchor to side or use mini-band at ankles."},
+  {name:"Banded Squat", category:"bands", muscles:"Quads, Glutes", video:"https://www.youtube.com/watch?v=8u3g0J0D0zE", description:"Band around thighs; squat keeping knees out."},
+  {name:"Banded Reverse Lunge", category:"bands", muscles:"Glutes, Quads", video:"https://www.youtube.com/watch?v=wrwwXE_x-pQ", description:"Step back while band resists movement."},
+  {name:"Banded Lunge (Forward)", category:"bands", muscles:"Quads, Glutes", video:"https://www.youtube.com/watch?v=6vQGOWLj9J4", description:"Forward lunge against anterior/posterior pull."},
+  {name:"Banded Ankle Dorsiflexion", category:"bands", muscles:"Ankles, Tibialis", video:"https://www.youtube.com/watch?v=2sKfG7qZ7D4", description:"Mobilize ankle with band pulling talus."},
+  {name:"Banded Toe Taps (Balance)", category:"bands", muscles:"Core, Hip Flexors", video:"https://www.youtube.com/watch?v=3qVgZxgJ9Cc", description:"Balance single leg; tap cone/points under tension."},
+  {name:"Banded Overhead Triceps Ext.", category:"bands", muscles:"Triceps", video:"https://www.youtube.com/watch?v=2JtG8I3k2eU", description:"Anchor high; extend elbows fully."},
+  {name:"Banded Biceps Curl", category:"bands", muscles:"Biceps", video:"https://www.youtube.com/watch?v=8GgkQm0XGgI", description:"Stand on band; curl to shoulders."},
+  {name:"Banded Y Raise", category:"bands", muscles:"Lower Traps", video:"https://www.youtube.com/watch?v=F7hQGfJ1dQ8", description:"Raise arms into Y pattern against light band."},
+  {name:"Banded External Rotation", category:"bands", muscles:"Rotator Cuff", video:"https://www.youtube.com/watch?v=1n6b3b0YKgU", description:"Elbow at side; rotate forearm outward."},
+  {name:"Banded Internal Rotation", category:"bands", muscles:"Rotator Cuff", video:"https://www.youtube.com/watch?v=7xWJ6d1kXwA", description:"Rotate forearm inward with elbow tucked."},
+  {name:"Banded Face Pull (Single Arm)", category:"bands", muscles:"Rear Delts", video:"https://www.youtube.com/watch?v=C3xq8VZ4rC0", description:"Single-arm variation with rotation."},
+  {name:"Banded Sumo Squat", category:"bands", muscles:"Glutes, Adductors", video:"https://www.youtube.com/watch?v=9wKqGLOs1o4", description:"Wide stance; band around thighs; knees out."},
+  {name:"Banded Seated Abduction", category:"bands", muscles:"Glute Medius", video:"https://www.youtube.com/watch?v=FfUEtK3vF8c", description:"Seated; push knees outward against band."},
+  {name:"Banded Good Morning (Light)", category:"bands", muscles:"Hamstrings, Erectors", video:"https://www.youtube.com/watch?v=Jk3P9v2s-4E", description:"Light band; hinge forward; return tall."}
+];
+
+/* ---------------------------
+   Load persisted state
+   --------------------------- */
+let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+if (!state || typeof state !== "object") state = {};
+if (!state.completed) state.completed = {};
+if (!state.lastSaved) state.lastSaved = null;
+
+/* ---------------------------
+   DOM handles
+   --------------------------- */
+const percentEl = document.getElementById("percentage");
+const lastSavedEl = document.getElementById("last-saved");
+const listContainer = document.getElementById("exercise-list");
+const exerciseDisplay = document.getElementById("exercise-display");
+const randomGymBtn = document.getElementById("random-gym");
+const randomBodyBtn = document.getElementById("random-bodyweight");
+const randomBandsBtn = document.getElementById("random-bands");
+const markCompleteBtn = document.getElementById("mark-complete");
+const resetBtn = document.getElementById("reset");
+const confettiCanvas = document.getElementById("confetti");
+
+/* ---------------------------
+   Helpers
+   --------------------------- */
+function videoURLFor(ex){
+  return (ex.video && ex.video.trim())
+    ? ex.video
+    : `https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " exercise")}`;
+}
+function saveState(){
+  state.lastSaved = new Date().toLocaleString();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  updateProgress();
+  updateLastSaved();
+}
+function updateProgress(){
+  // 1% per exercise, target = 100
+  const done = Object.keys(state.completed).length;
+  const percent = Math.max(0, Math.min(100, Math.round(done)));
+  percentEl.textContent = `${percent}% Complete`;
+}
+function updateLastSaved(){
+  lastSavedEl.textContent = state.lastSaved ? `Last saved: ${state.lastSaved}` : "";
+}
+
+/* ---------------------------
+   Render checklist
+   --------------------------- */
+function renderList(){
+  listContainer.innerHTML = "";
+  exercises.forEach((ex, idx) => {
+    const wrap = document.createElement("div");
+    wrap.className = "exercise-item";
+    wrap.id = `exercise-${idx}`;
+    wrap.style.borderLeftColor =
+      ex.category === "gym" ? "var(--gym)" :
+      ex.category === "bands" ? "var(--bands)" : "var(--body)";
+
+    const row = document.createElement("div");
+    row.className = "exercise-row";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!state.completed[idx];
+    cb.addEventListener("change", () => {
+      if (cb.checked) state.completed[idx] = true;
+      else delete state.completed[idx];
+      saveState();
+    });
+
+    const name = document.createElement("span");
+    name.className = "exercise-name";
+    name.textContent = ex.name;
+    name.addEventListener("click", () => toggleDetails(idx));
+
+    const badge = document.createElement("span");
+    badge.className = "exercise-badge " + (
+      ex.category==="gym" ? "badge-gym" : ex.category==="bands" ? "badge-bands" : "badge-body"
+    );
+    badge.textContent = ex.category.toUpperCase();
+
+    const toggle = document.createElement("button");
+    toggle.className = "toggle-btn";
+    toggle.textContent = "▶ Show Details";
+    toggle.addEventListener("click", () => toggleDetails(idx, toggle));
+
+    const details = document.createElement("div");
+    details.className = "exercise-details hidden";
+    details.innerHTML = `
+      <div><strong>Focus:</strong> ${ex.muscles}</div>
+      <div style="margin-top:6px"><strong>Description:</strong> ${ex.description}</div>
+      <div style="margin-top:6px"><a href="${videoURLFor(ex)}" target="_blank" rel="noopener">🎥 Watch Video</a></div>
+    `;
+
+    row.appendChild(cb);
+    row.appendChild(name);
+    row.appendChild(badge);
+    row.appendChild(toggle);
+
+    wrap.appendChild(row);
+    wrap.appendChild(details);
+    listContainer.appendChild(wrap);
+  });
+}
+
+function toggleDetails(idx, btn){
+  const wrap = document.getElementById(`exercise-${idx}`);
+  if (!wrap) return;
+  const details = wrap.querySelector(".exercise-details");
+  const hidden = details.classList.contains("hidden");
+  details.classList.toggle("hidden");
+  const t = wrap.querySelector(".toggle-btn");
+  if (btn || t) (btn||t).textContent = hidden ? "▼ Hide Details" : "▶ Show Details";
+}
+
+function scrollToExercise(idx){
+  const wrap = document.getElementById(`exercise-${idx}`);
+  if (!wrap) return;
+  const det = wrap.querySelector(".exercise-details");
+  if (det && det.classList.contains("hidden")) toggleDetails(idx);
+  wrap.scrollIntoView({behavior:"smooth", block:"center"});
+  wrap.classList.add("flash");
+  setTimeout(()=>wrap.classList.remove("flash"), 900);
+}
+window.scrollToExercise = scrollToExercise;
+
+/* ---------------------------
+   Random picker + roulette
+   --------------------------- */
+let currentSelectedIndex = null;
+function animateSelection(poolIdx, done){
+  let spins = 0;
+  const max = 16;
+  exerciseDisplay.classList.add("roulette");
+  const it = setInterval(()=>{
+    const pick = poolIdx[(Math.random()*poolIdx.length)|0];
+    exerciseDisplay.textContent = "🎲 " + exercises[pick].name;
+    if (++spins>=max){
+      clearInterval(it);
+      exerciseDisplay.classList.remove("roulette");
+      done(pick);
+    }
+  }, 90);
+}
+function handleRandom(category){
+  const pool = exercises.map((e,i)=>i).filter(i => exercises[i].category === category);
+  if (!pool.length) return;
+  animateSelection(pool, (idx) => {
+    currentSelectedIndex = idx;
+    exerciseDisplay.innerHTML = `👉 <a href="javascript:void(0)" id="selectedLink">${exercises[idx].name}</a>`;
+    document.getElementById("selectedLink")?.addEventListener("click", ()=>scrollToExercise(idx));
+    markCompleteBtn.disabled = false;
+  });
+}
+
+randomGymBtn.addEventListener("click", ()=>handleRandom("gym"));
+randomBodyBtn.addEventListener("click", ()=>handleRandom("bodyweight"));
+randomBandsBtn.addEventListener("click", ()=>handleRandom("bands"));
+
+/* ---------------------------
+   Mark selected complete
+   --------------------------- */
+markCompleteBtn.addEventListener("click", () => {
+  if (currentSelectedIndex==null) return;
+  const wrap = document.getElementById(`exercise-${currentSelectedIndex}`);
+  if (!wrap) return;
+  const cb = wrap.querySelector("input[type=checkbox]");
+  if (cb && !cb.checked){
+    cb.checked = true;
+    state.completed[currentSelectedIndex] = true;
+    saveState();
+    triggerConfetti();
+    scrollToExercise(currentSelectedIndex);
+  } else {
+    scrollToExercise(currentSelectedIndex);
+  }
+});
+
+/* ---------------------------
+   Reset challenge
+   --------------------------- */
+resetBtn.addEventListener("click", ()=>{
+  if (!confirm("Reset all progress?")) return;
+  state = {completed:{}, lastSaved:null};
+  saveState();
+  renderList();
+  updateProgress();
+  exerciseDisplay.textContent = "Progress reset — pick a random exercise to get going!";
+  markCompleteBtn.disabled = true;
+});
+
+/* ---------------------------
+   Confetti
+   --------------------------- */
+const ctx = confettiCanvas.getContext("2d");
+function resize() { confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight; }
+resize(); addEventListener("resize", resize);
+
+let confetti = [];
+function triggerConfetti(){
+  const N = 80;
+  for(let i=0;i<N;i++){
+    confetti.push({
+      x: Math.random()*confettiCanvas.width,
+      y: -20 - Math.random()*150,
+      vx: (Math.random()-.5)*6,
+      vy: 2+Math.random()*4,
+      r: 4+Math.random()*6,
+      a: Math.random()*360,
+      color: `hsl(${(Math.random()*360)|0},75%,60%)`,
+      life: 80+Math.random()*60
+    });
+  }
+  animateConfetti();
+}
+let raf=null;
+function animateConfetti(){
+  if (raf) cancelAnimationFrame(raf);
+  (function step(){
+    ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+    confetti.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy; p.a+=6; p.life--;
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.a*Math.PI/180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6);
+      ctx.restore();
+    });
+    confetti = confetti.filter(p=>p.life>0 && p.y<confettiCanvas.height+40);
+    if (confetti.length) raf=requestAnimationFrame(step);
+  })();
+}
+
+/* ---------------------------
+   Init
+   --------------------------- */
+renderList();
+updateProgress();
+updateLastSaved();
+</script>
+</body>
+</html>
